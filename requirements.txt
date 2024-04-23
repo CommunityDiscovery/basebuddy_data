@@ -2,8 +2,8 @@ pandas
 streamlit
 dnachisel[reports]
 biopython
-git+https://github.com/Jacoberts/streamlit-searchbox.git@main
-#git+https://github.com/Jacoberts/streamlit-searchbox.git@main#egg=streamlit_searchbox
+#git+https://github.com/Jacoberts/streamlit-searchbox.git@main
+git+https://github.com/Jacoberts/streamlit-searchbox.git@main#egg=streamlit_searchbox
 # -e git+https://github.com/Jacoberts/streamlit-searchbox.git@main#egg=streamlit_searchbox
 # /app/streamlit-searchbox
 thefuzz
