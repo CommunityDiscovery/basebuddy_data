@@ -4,7 +4,7 @@ import pandas as pd
 from io import StringIO
 import re
 from datetime import datetime
-
+import tarfile
 
 import numpy
 
@@ -18,13 +18,15 @@ from streamlit_modal import Modal
 import streamlit.components.v1 as components
 from st_keyup import st_keyup
 
+st.set_page_config(page_title="BaseBuddy")
+
 # Note that this, which is gitignored, is also excluded from gcloud builds.
 # For that reason, and cleanliness, that DB has been copied to a data/ directory.
-COCOPUTS_DB_FNAME = "data/cocoput_table.tsv"
+COCOPUTS_DB_FNAME = "data/cocoput_table.tsv.tar.gz"
 COCOPUTS_INDEX_FNAME = "data/cocoput_index.csv"
+COCOPUTS_DB_TAR_GZ_FNAME = "data/cocoput_table.tsv.tar.gz"
 
-
-@st.experimental_singleton
+@st.cache_resource
 def get_cocoput_organism_index():
     """Load an index of all organisms available in the CoCoPuts database."""
     df = pd.read_csv(COCOPUTS_INDEX_FNAME, index_col=False)
@@ -34,7 +36,7 @@ def get_cocoput_organism_index():
     )
 
 
-@st.experimental_singleton
+@st.cache_resource
 def get_cocoput_organism_list():
     """Return the index as a list."""
     return get_cocoput_organism_index().tolist()
@@ -95,10 +97,16 @@ def convert_cocoputs_table_to_dnachisel(
     return new_codon_table
 
 
-@st.experimental_memo
+@st.cache_resource
 def get_codon_table_for_taxid(taxid):
     """Return the CoCoPuts codon usage table for the given TaxID."""
-    df = pd.read_csv(COCOPUTS_DB_FNAME, sep="\t", index_col=False)
+    # Extract the contents of the tar.gz file
+    with tarfile.open(COCOPUTS_DB_TAR_GZ_FNAME, "r:gz") as tar:
+        tar.extractall(path="data/")  # Extract to the "data" directory
+
+    # Now read the CSV file inside the extracted directory
+    extracted_csv_file = "data/cocoput_table.tsv"
+    df = pd.read_csv(extracted_csv_file, sep="\t", index_col=False)
     subset = df[df.Taxid == taxid]
     row = subset[subset["# CDS"] == subset["# CDS"].max()].iloc[0]
     codons = [a + b + c for a in "ATCG" for b in "ATCG" for c in "ATCG"]
@@ -106,7 +114,7 @@ def get_codon_table_for_taxid(taxid):
     return convert_cocoputs_table_to_dnachisel(codon_table)
 
 
-st.set_page_config(page_title="BaseBuddy")
+#st.set_page_config(page_title="BaseBuddy")
 
 c1, c2, c3 = st.columns((1, 5, 1))
 with c2:
@@ -123,8 +131,8 @@ st.write("""
 
 **4.) Click the "Download Result(s)" button to generate a FASTA file with your optimized sequence(s).**
 
-Check out the advanced settings if you have special requirements for your optimized sequence 
-(e.g. avoiding certain cut sites or patterns, or lowering synthesis difficulty). 
+Check out the advanced settings if you have special requirements for your optimized sequence
+(e.g. avoiding certain cut sites or patterns, or lowering synthesis difficulty).
 
 For further questions or concerns please visit https://github.com/JBEI/basebuddy
 """
@@ -307,9 +315,9 @@ with st.expander("Advanced Settings"):
             max_value=0.9,
             step=0.01,
             help="Define the minium GC-content in a given window."
-        )    
+        )
 
-    with enforce_gc[1]:    
+    with enforce_gc[1]:
         gc_maximum = st.number_input(
             "Max. GC-content",
             value=0.75,
@@ -336,7 +344,7 @@ with st.expander("Advanced Settings"):
         default=['BamHI', 'NdeI', 'XhoI', 'SpeI', 'BsaI']
         )
     for restricition_site in restriction_sites:
-        cut_site_constraints.append(AvoidPattern(restricition_site+"_site")) 
+        cut_site_constraints.append(AvoidPattern(restricition_site+"_site"))
 
     # Get Avoid custom pattern string from the user
     input_string = st.text_input(
@@ -463,7 +471,7 @@ except Exception as e:
 result_list=[]
 for record, recoding in zip(records, recodings):
     if optimization_method == 'harmonize_rca':
-        notes = f'method: {optimization_method}, source_taxid: {source_taxid}, target_taxid: {target_taxid}'  
+        notes = f'method: {optimization_method}, source_taxid: {source_taxid}, target_taxid: {target_taxid}'
     else:
         notes = f'method: {optimization_method}, target_taxid: {target_taxid}'
     
@@ -471,10 +479,10 @@ for record, recoding in zip(records, recodings):
     result_list.append(record_result)
 
 
-st.download_button(label="**Download result(s)**", 
+st.download_button(label="**Download result(s)**",
                     data = "".join(str(j) for j in result_list),
                     file_name = datetime.now().strftime("%Y%m%d-%I%M%S%p_") + "BaseBuddy_results" + ".fasta",
-                    )   
+                    )
 st.text_area(
     "Or copy your result(s) from this textbox:","".join(str(j) for j in result_list)
 )
